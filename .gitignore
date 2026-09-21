@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node.js
+node_modules/
+dist/
+coverage/
+
+# Android (Capacitor)
+.gradle/
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and OS
+.idea/
+.vscode/
+*.log
+Thumbs.db
+desktop.ini
+.DS_Store
