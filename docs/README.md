@@ -24,9 +24,12 @@
 
 Супровідні матеріали: [Thesis Proposal](proposal.md).
 
-## Розділ 1 у форматі .docx
+## Розділ 1: зведений документ
 
-Зведений документ Розділу 1 для рецензування: [F2_Diploma_Chapter1_Загребенюк.docx](F2_Diploma_Chapter1_Загребенюк.docx). Документ сформовано з файлу [1_analysis.md](1_analysis.md), який є джерелом тексту.
+- Хмарна версія для рецензування (Google Docs, доступ «Може коментувати»): [F2_Diploma_Chapter1_Загребенюк](https://docs.google.com/document/d/1RbIS1xUJh1MR9llhcdrL9C9WHOENiKHB/edit?usp=sharing).
+- Локальна копія: [F2_Diploma_Chapter1_Загребенюк.docx](F2_Diploma_Chapter1_Загребенюк.docx).
+
+Документ сформовано з файлу [1_analysis.md](1_analysis.md), який є джерелом тексту.
 
 ## Нефункціональні вимоги (NFRs Matrix)
 
