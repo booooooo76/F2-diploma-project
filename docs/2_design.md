@@ -1,6 +1,6 @@
 # РОЗДІЛ 2. ПРОЄКТУВАННЯ АРХІТЕКТУРИ СИСТЕМИ
 
-Архітектуру описано за моделлю C4 (Simon Brown) на трьох рівнях: контекст системи, контейнери та компоненти критичного контейнера. Діаграми подано у форматі Mermaid.js (Diagrams-as-Code). Вимоги, на які посилаються описи, визначено в [специфікації вимог](srs.md); ключові архітектурні рішення зафіксовано в [ADR](adr/).
+Архітектуру описано за моделлю C4 (Simon Brown) на трьох рівнях: контекст системи, контейнери та компоненти критичного контейнера. Діаграми подано у форматі Mermaid.js (Diagrams-as-Code) у нотації C4: тип кожного елемента вказано в квадратних дужках ([Person], [Software System], [Container: технологія], [Component: тип]), кольори відповідають стандартній палітрі C4, зв’язки підписано дією та протоколом. Вимоги, на які посилаються описи, визначено в [специфікації вимог](srs.md); ключові архітектурні рішення зафіксовано в [ADR](adr/).
 
 ## 2.1 Контекстне та контейнерне моделювання системи (C4 Model)
 
@@ -9,23 +9,26 @@
 ### 2.1.1 Рівень 1. System Context
 
 ```mermaid
-C4Context
-  title BookOff — System Context (C4 Level 1)
+flowchart TB
+  reader(["<b>Читач</b><br/>[Person]<br/><br/>Веде особисту бібліотеку, фіксує<br/>читання, сканує полиці, створює нотатки"])
+  admin(["<b>Адміністратор</b><br/>[Person]<br/><br/>Налаштовує правила гейміфікації,<br/>запускає перебудову проєкцій"])
 
-  Person(reader, "Читач", "Веде особисту бібліотеку, фіксує читання, сканує полиці, створює нотатки")
-  Person(admin, "Адміністратор", "Налаштовує правила гейміфікації, запускає перебудову проєкцій")
+  bookoff["<b>BookOff</b><br/>[Software System]<br/><br/>Трекінг читання з розпізнаванням<br/>книжкових полиць і подієвою гейміфікацією"]
 
-  System(bookoff, "BookOff", "Трекінг читання з розпізнаванням книжкових полиць і подієвою гейміфікацією")
+  gbooks["<b>Google Books API</b><br/>[Software System]<br/><br/>Основне джерело<br/>бібліографічних метаданих"]
+  olib["<b>Open Library API</b><br/>[Software System]<br/><br/>Резервне джерело<br/>бібліографічних метаданих"]
 
-  System_Ext(gbooks, "Google Books API", "Основне джерело бібліографічних метаданих")
-  System_Ext(olib, "Open Library API", "Резервне джерело бібліографічних метаданих")
+  reader -. "Керує бібліотекою,<br/>завантажує фото полиць<br/>[HTTPS]" .-> bookoff
+  admin -. "Налаштовує правила,<br/>запускає перебудову<br/>[HTTPS]" .-> bookoff
+  bookoff -. "Пошук видань за назвою,<br/>автором, ISBN<br/>[REST / HTTPS, JSON]" .-> gbooks
+  bookoff -. "Резервний пошук<br/>[REST / HTTPS, JSON]" .-> olib
 
-  Rel(reader, bookoff, "Керує бібліотекою, завантажує фото полиць", "HTTPS")
-  Rel(admin, bookoff, "Налаштовує правила, запускає перебудову", "HTTPS")
-  Rel(bookoff, gbooks, "Пошук видань за назвою, автором, ISBN", "REST / HTTPS, JSON")
-  Rel(bookoff, olib, "Резервний пошук видань", "REST / HTTPS, JSON")
-
-  UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+  classDef person fill:#08427B,stroke:#073B6F,color:#fff
+  classDef system fill:#1168BD,stroke:#0B4884,color:#fff
+  classDef external fill:#999999,stroke:#8A8A8A,color:#fff
+  class reader,admin person
+  class bookoff system
+  class gbooks,olib external
 ```
 
 | Елемент | Тип | Опис | Трасування |
@@ -43,58 +46,56 @@ C4Context
 ### 2.1.2 Рівень 2. Container
 
 ```mermaid
-C4Container
-  title BookOff — Container Diagram (C4 Level 2)
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 110}}}%%
+flowchart LR
+  reader(["<b>Читач</b><br/>[Person]<br/><br/>Веде бібліотеку, фіксує<br/>читання, сканує полиці"])
+  admin(["<b>Адміністратор</b><br/>[Person]<br/><br/>Налаштовує правила<br/>гейміфікації"])
 
-  Person(reader, "Читач")
-  Person(admin, "Адміністратор")
+  subgraph bookoff["BookOff [Software System]"]
+    direction LR
+    spa["<b>Вебклієнт</b><br/>[Container: Vue 3, TypeScript]<br/><br/>SPA: бібліотека, статистика,<br/>сканер, нотатки, адмін-розділ"]
+    mobile["<b>Android-клієнт</b><br/>[Container: Capacitor]<br/><br/>Та сама SPA у нативній<br/>оболонці; камера, штрихкод"]
+    proxy["<b>Reverse Proxy</b><br/>[Container: Caddy 2]<br/><br/>TLS, HSTS, CORS,<br/>маршрутизація /api/v1"]
+    api["<b>API-застосунок</b><br/>[Container: Python, FastAPI]<br/><br/>Модульний моноліт: identity, catalog,<br/>scanner, reading, notes, gamification"]
+    worker["<b>Scanner Worker</b><br/>[Container: Celery, PaddleOCR]<br/><br/>Розпізнавання корінців<br/>і пошук кандидатів"]
+    relay["<b>Outbox Relay</b><br/>[Container: Python]<br/><br/>Публікує події<br/>з outbox у Kafka"]
+    consumer["<b>Gamification Consumer</b><br/>[Container: Python, aiokafka]<br/><br/>Ідемпотентне нарахування,<br/>CQRS-проєкції"]
+    s3[("<b>Сховище зображень</b><br/>[Container: MinIO]<br/><br/>Фото полиць,<br/>видалення через 24 год")]
+    redis[("<b>Redis</b><br/>[Container: Redis 7]<br/><br/>Черга Celery, кеш,<br/>ліміти, ключі ідемпотентності")]
+    pg[("<b>PostgreSQL</b><br/>[Container: PostgreSQL 16]<br/><br/>Схема на модуль,<br/>outbox, проєкції")]
+    kafka[("<b>Apache Kafka</b><br/>[Container: KRaft, 1 брокер]<br/><br/>Журнал доменних<br/>подій, DLQ")]
+    mon["<b>Моніторинг</b><br/>[Container: OTel Collector,<br/>Prometheus, Grafana]<br/><br/>Метрики, траси, сповіщення"]
+  end
 
-  System_Boundary(bookoff, "BookOff") {
-    Container(spa, "Вебклієнт", "Vue 3, TypeScript, Vite", "SPA: бібліотека, статистика, сканер, нотатки, адміністративний розділ")
-    Container(mobile, "Android-клієнт", "Capacitor, Vue 3", "Та сама кодова база в нативній оболонці; камера, декодування штрихкоду")
-    Container(proxy, "Reverse Proxy", "Caddy 2", "TLS, HSTS, статичні файли SPA, маршрутизація /api/v1")
-    Container(api, "API-застосунок", "Python 3.12, FastAPI", "Модульний моноліт: identity, catalog, scanner, reading, notes, gamification-query")
-    Container(relay, "Outbox Relay", "Python", "Вибирає неопубліковані записи outbox і публікує їх у Kafka")
-    Container(consumer, "Gamification Consumer", "Python, aiokafka", "Ідемпотентні споживачі подій, оновлення CQRS-проєкцій")
-    Container(worker, "Scanner Worker", "Python, Celery, PaddleOCR, RapidFuzz", "Конвеєр розпізнавання корінців і зіставлення з каталогом")
-    ContainerDb(pg, "PostgreSQL", "PostgreSQL 16", "Схема на модуль, outbox, проєкції, журнал оброблених подій")
-    ContainerDb(redis, "Redis", "Redis 7, ACL", "Брокер Celery, кеш метаданих, Token Bucket, ключі ідемпотентності")
-    ContainerQueue(kafka, "Apache Kafka", "Kafka 3.x, KRaft, 1 брокер", "Журнал доменних подій, DLQ-топік")
-    ContainerDb(s3, "Сховище зображень", "MinIO, S3 API", "Фото полиць, lifecycle-правило 24 год")
-    Container(otel, "OTel Collector", "OpenTelemetry Collector", "Прийом трас і метрик, експорт у Prometheus")
-    Container(prom, "Prometheus і Grafana", "Prometheus, Grafana", "Метрики, панелі, сповіщення, Blackbox-перевірки")
-  }
+  bib["<b>Google Books API,<br/>Open Library API</b><br/>[Software System]<br/><br/>Бібліографічні метадані"]
 
-  System_Ext(gbooks, "Google Books API")
-  System_Ext(olib, "Open Library API")
+  reader -. "Використовує<br/>[HTTPS]" .-> spa
+  reader -. "Використовує<br/>[Android]" .-> mobile
+  admin -. "Адмін-розділ<br/>[HTTPS]" .-> spa
+  spa -. "Виклики API<br/>[REST / HTTPS]" .-> proxy
+  mobile -. "Виклики API<br/>[REST / HTTPS]" .-> proxy
+  proxy -. "Проксіювання<br/>[HTTP / TCP 8000]" .-> api
+  api -. "Дані модулів + outbox<br/>[SQL / TCP 5432]" .-> pg
+  api -. "Задачі, кеш, ліміти<br/>[RESP / TCP 6379]" .-> redis
+  api -. "Запис фото<br/>[S3 API / HTTP]" .-> s3
+  api -. "Пошук видань<br/>[REST / HTTPS]" .-> bib
+  api -. "Траси, метрики<br/>[OTLP / gRPC]" .-> mon
+  worker -. "Отримання задач<br/>[RESP / TCP 6379]" .-> redis
+  worker -. "Читання фото<br/>[S3 API / HTTP]" .-> s3
+  worker -. "Результат + outbox<br/>[SQL / TCP 5432]" .-> pg
+  worker -. "Пошук кандидатів<br/>[REST / HTTPS]" .-> bib
+  relay -. "Вибірка outbox<br/>[SQL / TCP 5432]" .-> pg
+  relay -. "Публікація подій<br/>[Kafka / TCP 9092]" .-> kafka
+  consumer -. "Споживання подій<br/>[Kafka / TCP 9092]" .-> kafka
+  consumer -. "Оновлення проєкцій<br/>[SQL / TCP 5432]" .-> pg
 
-  Rel(reader, spa, "Використовує", "HTTPS")
-  Rel(reader, mobile, "Використовує", "Android")
-  Rel(admin, spa, "Адміністративний розділ", "HTTPS")
-  Rel(spa, proxy, "Виклики API, JSON", "REST / HTTPS")
-  Rel(mobile, proxy, "Виклики API, JSON", "REST / HTTPS")
-  Rel(proxy, api, "Проксіювання /api/v1", "HTTP/1.1 / TCP 8000")
-  Rel(api, pg, "Транзакції: дані модуля + outbox", "SQL / TCP 5432")
-  Rel(api, redis, "Задачі Celery, кеш, ліміти", "RESP / TCP 6379")
-  Rel(api, s3, "Запис зображень", "S3 API / HTTP")
-  Rel(api, gbooks, "Пошук видань", "REST / HTTPS")
-  Rel(api, olib, "Резервний пошук", "REST / HTTPS")
-  Rel(worker, redis, "Отримання задач", "RESP / TCP 6379")
-  Rel(worker, s3, "Читання зображень", "S3 API / HTTP")
-  Rel(worker, pg, "Результати задачі + outbox", "SQL / TCP 5432")
-  Rel(worker, gbooks, "Пошук кандидатів", "REST / HTTPS")
-  Rel(worker, olib, "Резервний пошук кандидатів", "REST / HTTPS")
-  Rel(relay, pg, "Вибірка outbox", "SQL / TCP 5432")
-  Rel(relay, kafka, "Публікація подій", "Kafka protocol / TCP 9092")
-  Rel(consumer, kafka, "Споживання подій, коміт офсетів", "Kafka protocol / TCP 9092")
-  Rel(consumer, pg, "Оновлення проєкцій", "SQL / TCP 5432")
-  Rel(api, otel, "Траси, метрики", "OTLP / gRPC 4317")
-  Rel(worker, otel, "Траси, метрики", "OTLP / gRPC 4317")
-  Rel(consumer, otel, "Траси, метрики", "OTLP / gRPC 4317")
-  Rel(prom, otel, "Збір метрик", "HTTP / Prometheus scrape")
-  Rel(prom, proxy, "Синтетична перевірка /api/v1/health", "HTTPS")
-
-  UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="1")
+  classDef person fill:#08427B,stroke:#073B6F,color:#fff
+  classDef container fill:#438DD5,stroke:#3C7FC0,color:#fff
+  classDef external fill:#999999,stroke:#8A8A8A,color:#fff
+  class reader,admin person
+  class spa,mobile,proxy,api,worker,relay,consumer,pg,redis,kafka,s3,mon container
+  class bib external
+  style bookoff fill:#ffffff,stroke:#444,stroke-dasharray:5 5,color:#000
 ```
 
 **Опис контейнерів**
@@ -125,7 +126,7 @@ C4Container
 | Relay, Consumer → Kafka | Kafka protocol / TCP 9092 | Ключ партиціювання `user_id` зберігає порядок подій користувача |
 | API, Worker → MinIO | S3 API / HTTP | Внутрішня мережа Docker |
 | API, Worker → Google Books, Open Library | REST / HTTPS | Таймаут, Retry, Circuit Breaker відповідно до [SRS-NFR-REL-04](srs.md#srs-nfr-rel-04) |
-| Застосунки → OTel Collector | OTLP / gRPC 4317 | Траси та метрики |
+| API, Worker, Consumer → Моніторинг (OTel Collector) | OTLP / gRPC 4317 | Траси та метрики; на діаграмі показано зв’язок від API, інші процеси експортують дані аналогічно |
 
 Окремий API Gateway і зовнішній провайдер ідентичності не використовуються: функції TLS-термінації та маршрутизації виконує Caddy, а автентифікацію, ліміти та перевірку прав — API-застосунок. Обґрунтування наведено в журналі архітектурного рев’ю (AI Insights, ЛР № 5).
 
@@ -133,63 +134,56 @@ C4Container
 
 <a id="diagram-level3"></a>
 
-Для деталізації обрано контейнер Scanner Worker: він виконує основне обчислювальне навантаження системи ([SRS-NFR-PERF-04](srs.md#srs-nfr-perf-04)) і реалізує ключову функцію ідентифікації видань ([SRS-FUN-11](srs.md#srs-fun-11)). Компоненти розподілено за шарами Clean Architecture: вхідний шар, шар застосунку, доменне ядро та вихідні адаптери. Доменне ядро залежить лише від інтерфейсів (портів); реалізації портів підставляються через композиційний корінь (Dependency Injection).
+Для деталізації обрано контейнер Scanner Worker: він виконує основне обчислювальне навантаження системи ([SRS-NFR-PERF-04](srs.md#srs-nfr-perf-04)) і реалізує ключову функцію ідентифікації видань ([SRS-FUN-11](srs.md#srs-fun-11)). Компоненти розподілено за шарами Clean Architecture: вхідний шар, шар застосунку, доменне ядро та вихідні адаптери. Доменне ядро залежить лише від інтерфейсів (портів); реалізації портів підставляються через композиційний корінь (Dependency Injection). Порти позначено в підписах зв’язків (наприклад, `[TextRecognizerPort]`), адаптери є їхніми реалізаціями.
 
 ```mermaid
-C4Component
-  title Scanner Worker — Component Diagram (C4 Level 3)
+flowchart TB
+  redis[("<b>Redis</b><br/>[Container: Redis 7]<br/><br/>Черга задач Celery")]
 
-  ContainerQueue(redis, "Redis", "Брокер Celery", "Черга задач розпізнавання")
-  ContainerDb(pg, "PostgreSQL", "Схема scanner", "Задачі, результати, outbox")
-  ContainerDb(s3, "Сховище зображень", "MinIO, S3 API")
-  System_Ext(gbooks, "Google Books API")
-  System_Ext(olib, "Open Library API")
-  Container(otel, "OTel Collector", "OpenTelemetry")
+  subgraph worker["Scanner Worker [Container: Python, Celery]"]
+    direction TB
+    consumer["<b>ScanTaskConsumer</b><br/>[Component: Celery task]<br/><br/>Приймає задачу ScanRequested,<br/>валідує payload (Pydantic)"]
+    guard["<b>ScanJobGuard</b><br/>[Component: Guard]<br/><br/>Перевіряє власника і статус<br/>задачі, блокує повторну обробку"]
+    errors["<b>TaskErrorHandler</b><br/>[Component: Celery signals]<br/><br/>До 2 повторів, потім<br/>статус «помилка»"]
+    usecase["<b>RecognizeShelfUseCase</b><br/>[Component: Application Service]<br/><br/>Оркеструє конвеєр<br/>розпізнавання полиці"]
+    grouper["<b>SpineGrouper</b><br/>[Component: Domain Service]<br/><br/>Групує фрагменти тексту<br/>за корінцями"]
+    matcher["<b>CandidateMatcher</b><br/>[Component: Domain Service]<br/><br/>Оцінка схожості RapidFuzz,<br/>відсіювання за порогом"]
+    ocr["<b>PaddleOcrAdapter</b><br/>[Component: Adapter]<br/><br/>Детекція, поворот ±90°,<br/>розпізнавання тексту"]
+    catalog["<b>ResilientCatalogClient</b><br/>[Component: Adapter]<br/><br/>Кеш Redis, Retry, Circuit Breaker,<br/>резервне джерело"]
+    storage["<b>S3ImageStorage</b><br/>[Component: Adapter]<br/><br/>Читання зображення<br/>за ключем"]
+    telemetry["<b>TelemetryInstrumentation</b><br/>[Component: OpenTelemetry SDK]<br/><br/>Спани етапів конвеєра,<br/>гістограми тривалості"]
+    uow["<b>PgScanUnitOfWork</b><br/>[Component: Repository]<br/><br/>Результат задачі + подія<br/>outbox в одній транзакції"]
+  end
 
-  Container_Boundary(worker, "Scanner Worker") {
-    Component(consumer, "ScanTaskConsumer", "Celery task", "Вхідний шар: отримує повідомлення ScanRequested")
-    Component(validator, "TaskPayloadValidator", "Pydantic", "Валідація payload і версії схеми повідомлення")
-    Component(guard, "ScanJobGuard", "Python", "Перевіряє існування задачі, власника та статус «в черзі»; блокує повторну обробку")
-    Component(errors, "TaskErrorHandler", "Celery signals", "Класифікація помилок, до 2 повторів, статус «помилка»")
-    Component(telemetry, "TelemetryInstrumentation", "OpenTelemetry SDK", "Спани етапів конвеєра, гістограми тривалості")
-    Component(usecase, "RecognizeShelfUseCase", "Application service", "Оркеструє конвеєр і фіксує результат в одиниці роботи")
-    Component(grouper, "SpineGrouper", "Domain service", "Групує текстові фрагменти за корінцями")
-    Component(matcher, "CandidateMatcher", "Domain service, RapidFuzz", "Оцінка схожості token set ratio, відсіювання за порогом")
-    Component(ocrport, "TextRecognizerPort", "Interface", "Контракт детекції та розпізнавання тексту")
-    Component(catport, "CandidateSourcePort", "Interface", "Контракт пошуку кандидатів")
-    Component(storeport, "ImageStoragePort", "Interface", "Контракт читання зображення")
-    Component(uowport, "ScanUnitOfWorkPort", "Interface", "Контракт транзакції: результат задачі + подія outbox")
-    Component(paddle, "PaddleOcrAdapter", "PaddleOCR PP-OCR", "Детекція, класифікація орієнтації ±90°, розпізнавання")
-    Component(catalog, "ResilientCatalogClient", "httpx, Redis-кеш", "Cache-Aside, таймаут, Retry, Circuit Breaker, резервне джерело")
-    Component(storage, "S3ImageStorage", "boto3", "Читання зображення за ключем")
-    Component(uow, "PgScanUnitOfWork", "SQLAlchemy, asyncpg", "Репозиторій задач і запис outbox в одній транзакції")
-  }
+  s3[("<b>Сховище зображень</b><br/>[Container: MinIO]")]
+  pg[("<b>PostgreSQL</b><br/>[Container: схема scanner]")]
+  otel["<b>OTel Collector</b><br/>[Container: OpenTelemetry]"]
+  bib["<b>Google Books API,<br/>Open Library API</b><br/>[Software System]"]
 
-  Rel(redis, consumer, "Доставка задачі", "RESP / Celery")
-  Rel(consumer, validator, "Валідує payload", "Виклик функції")
-  Rel(consumer, guard, "Перевіряє задачу", "Виклик через DI")
-  Rel(consumer, usecase, "Запускає сценарій", "Виклик через DI")
-  Rel(errors, consumer, "Обробляє винятки", "Celery signals")
-  Rel(telemetry, usecase, "Інструментує етапи", "Декоратор, контекст спану")
-  Rel(guard, uowport, "Читає статус задачі", "Інтерфейсний виклик")
-  Rel(usecase, storeport, "Отримує зображення", "Інтерфейсний виклик")
-  Rel(usecase, ocrport, "Розпізнає текст", "Інтерфейсний виклик")
-  Rel(usecase, grouper, "Групує фрагменти", "Виклик функції")
-  Rel(usecase, catport, "Шукає кандидатів", "Інтерфейсний виклик")
-  Rel(usecase, matcher, "Оцінює кандидатів", "Виклик функції")
-  Rel(usecase, uowport, "Фіксує результат", "Інтерфейсний виклик")
-  Rel(paddle, ocrport, "Реалізує", "Python Protocol")
-  Rel(catalog, catport, "Реалізує", "Python Protocol")
-  Rel(storage, storeport, "Реалізує", "Python Protocol")
-  Rel(uow, uowport, "Реалізує", "Python Protocol")
-  Rel(storage, s3, "GetObject", "S3 API / HTTP")
-  Rel(catalog, gbooks, "Пошук", "REST / HTTPS")
-  Rel(catalog, olib, "Резервний пошук", "REST / HTTPS")
-  Rel(catalog, redis, "Кеш метаданих", "RESP / TCP")
-  Rel(uow, pg, "Транзакція", "SQL / TCP 5432")
-  Rel(telemetry, otel, "Експорт", "OTLP / gRPC")
+  redis -. "Доставка задачі<br/>[RESP / Celery]" .-> consumer
+  consumer -. "Перевіряє задачу<br/>[виклик через DI]" .-> guard
+  consumer -. "Запускає сценарій<br/>[виклик через DI]" .-> usecase
+  errors -. "Обробляє винятки<br/>[Celery signals]" .-> consumer
+  guard -. "Читає статус задачі<br/>[ScanUnitOfWorkPort]" .-> uow
+  usecase -. "Групує фрагменти" .-> grouper
+  usecase -. "Оцінює кандидатів" .-> matcher
+  usecase -. "Розпізнає текст<br/>[TextRecognizerPort]" .-> ocr
+  usecase -. "Шукає кандидатів<br/>[CandidateSourcePort]" .-> catalog
+  usecase -. "Отримує зображення<br/>[ImageStoragePort]" .-> storage
+  usecase -. "Фіксує результат<br/>[ScanUnitOfWorkPort]" .-> uow
+  storage -. "GetObject<br/>[S3 API / HTTP]" .-> s3
+  uow -. "Транзакція<br/>[SQL / TCP 5432]" .-> pg
+  catalog -. "Пошук видань<br/>[REST / HTTPS]" .-> bib
+  telemetry -. "Інструментує етапи<br/>[декоратор, контекст спану]" .-> usecase
+  telemetry -. "Експорт спанів<br/>[OTLP / gRPC]" .-> otel
 
-  UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="1")
+  classDef component fill:#85BBF0,stroke:#5D82A8,color:#000
+  classDef container fill:#438DD5,stroke:#3C7FC0,color:#fff
+  classDef external fill:#999999,stroke:#8A8A8A,color:#fff
+  class consumer,guard,errors,usecase,grouper,matcher,ocr,catalog,storage,uow,telemetry component
+  class redis,s3,pg,otel container
+  class bib external
+  style worker fill:#ffffff,stroke:#444,stroke-dasharray:5 5,color:#000
 ```
 
 **Опис компонентів**
